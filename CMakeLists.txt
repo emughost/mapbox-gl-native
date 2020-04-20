@@ -21,10 +21,13 @@ option(MBGL_WITH_QT "Build Mapbox GL Qt bindings" OFF)
 option(MBGL_WITH_SANITIZER "Use [address|thread|undefined] here" OFF)
 option(MBGL_WITH_RTTI "Compile with runtime type information" OFF)
 option(MBGL_WITH_OPENGL "Build with OpenGL renderer" ON)
+option(MBGL_WITH_WERROR "Make all compilation warnings errors" ON)
 
 add_library(
     mbgl-compiler-options INTERFACE
 )
+
+set(UBSAN_BLACKLIST ${PROJECT_SOURCE_DIR}/scripts/ubsan.blacklist)
 
 target_compile_options(
     mbgl-compiler-options
@@ -35,14 +38,21 @@ target_compile_options(
         $<$<BOOL:${MBGL_WITH_SANITIZER}>:-fno-optimize-sibling-calls>
         $<$<STREQUAL:${MBGL_WITH_SANITIZER},address>:-fsanitize=address>
         $<$<STREQUAL:${MBGL_WITH_SANITIZER},thread>:-fsanitize=thread>
-        $<$<STREQUAL:${MBGL_WITH_SANITIZER},undefined>:-fsanitize=implicit-conversion>
-        $<$<STREQUAL:${MBGL_WITH_SANITIZER},undefined>:-fsanitize=undefined>
-        $<$<STREQUAL:${MBGL_WITH_SANITIZER},undefined>:-fsanitize=unsigned-integer-overflow>
+        $<$<STREQUAL:${MBGL_WITH_SANITIZER},undefined>:-fsanitize=implicit-conversion,
+        -fsanitize-blacklist=${UBSAN_BLACKLIST}>
+        $<$<STREQUAL:${MBGL_WITH_SANITIZER},undefined>:-fsanitize=undefined,
+        -fsanitize-blacklist=${UBSAN_BLACKLIST}>
+        $<$<STREQUAL:${MBGL_WITH_SANITIZER},undefined>:-fsanitize=unsigned-integer-overflow,
+        -fsanitize-blacklist=${UBSAN_BLACKLIST}>
+        $<$<STREQUAL:${MBGL_WITH_SANITIZER},undefined>:-fsanitize=nullability,
+        -fsanitize-blacklist=${UBSAN_BLACKLIST}>
+        $<$<STREQUAL:${MBGL_WITH_SANITIZER},undefined>:-fsanitize=float-divide-by-zero,
+        -fsanitize-blacklist=${UBSAN_BLACKLIST}>
         $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<NOT:$<BOOL:${MBGL_WITH_RTTI}>>>:-fno-rtti>
         $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<NOT:$<PLATFORM_ID:Windows>>>:-Wall>
         $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<NOT:$<PLATFORM_ID:Windows>>>:-Wshadow>
         $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<NOT:$<PLATFORM_ID:Windows>>>:-Wextra>
-        $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<NOT:$<PLATFORM_ID:Windows>>>:-Werror>
+        $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<NOT:$<PLATFORM_ID:Windows>>,$<BOOL:${MBGL_WITH_WERROR}>>:-Werror>
         $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<PLATFORM_ID:Android>>:-Wno-error=tautological-constant-compare>
         $<$<CXX_COMPILER_ID:GNU>:-Wno-error=maybe-uninitialized>
         $<$<CXX_COMPILER_ID:GNU>:-Wno-error=return-type>
@@ -150,6 +160,7 @@ add_library(
     ${PROJECT_SOURCE_DIR}/include/mbgl/style/conversion/light.hpp
     ${PROJECT_SOURCE_DIR}/include/mbgl/style/conversion/position.hpp
     ${PROJECT_SOURCE_DIR}/include/mbgl/style/conversion/property_value.hpp
+    ${PROJECT_SOURCE_DIR}/include/mbgl/style/conversion/rotation.hpp
     ${PROJECT_SOURCE_DIR}/include/mbgl/style/conversion/source.hpp
     ${PROJECT_SOURCE_DIR}/include/mbgl/style/conversion/tileset.hpp
     ${PROJECT_SOURCE_DIR}/include/mbgl/style/conversion/transition_options.hpp
@@ -207,6 +218,7 @@ add_library(
     ${PROJECT_SOURCE_DIR}/include/mbgl/style/position.hpp
     ${PROJECT_SOURCE_DIR}/include/mbgl/style/property_expression.hpp
     ${PROJECT_SOURCE_DIR}/include/mbgl/style/property_value.hpp
+    ${PROJECT_SOURCE_DIR}/include/mbgl/style/rotation.hpp
     ${PROJECT_SOURCE_DIR}/include/mbgl/style/source.hpp
     ${PROJECT_SOURCE_DIR}/include/mbgl/style/sources/custom_geometry_source.hpp
     ${PROJECT_SOURCE_DIR}/include/mbgl/style/sources/geojson_source.hpp
@@ -329,6 +341,7 @@ add_library(
     ${PROJECT_SOURCE_DIR}/src/mbgl/layermanager/line_layer_factory.cpp
     ${PROJECT_SOURCE_DIR}/src/mbgl/layermanager/raster_layer_factory.cpp
     ${PROJECT_SOURCE_DIR}/src/mbgl/layermanager/symbol_layer_factory.cpp
+    ${PROJECT_SOURCE_DIR}/src/mbgl/layout/circle_layout.hpp
     ${PROJECT_SOURCE_DIR}/src/mbgl/layout/clip_lines.cpp
     ${PROJECT_SOURCE_DIR}/src/mbgl/layout/clip_lines.hpp
     ${PROJECT_SOURCE_DIR}/src/mbgl/layout/layout.hpp
@@ -538,6 +551,7 @@ add_library(
     ${PROJECT_SOURCE_DIR}/src/mbgl/style/conversion/light.cpp
     ${PROJECT_SOURCE_DIR}/src/mbgl/style/conversion/position.cpp
     ${PROJECT_SOURCE_DIR}/src/mbgl/style/conversion/property_value.cpp
+    ${PROJECT_SOURCE_DIR}/src/mbgl/style/conversion/rotation.cpp
     ${PROJECT_SOURCE_DIR}/src/mbgl/style/conversion/source.cpp
     ${PROJECT_SOURCE_DIR}/src/mbgl/style/conversion/stringify.hpp
     ${PROJECT_SOURCE_DIR}/src/mbgl/style/conversion/tileset.cpp
@@ -732,6 +746,8 @@ add_library(
     ${PROJECT_SOURCE_DIR}/src/mbgl/tile/vector_tile.hpp
     ${PROJECT_SOURCE_DIR}/src/mbgl/tile/vector_tile_data.cpp
     ${PROJECT_SOURCE_DIR}/src/mbgl/tile/vector_tile_data.hpp
+    ${PROJECT_SOURCE_DIR}/src/mbgl/util/bounding_volumes.hpp
+    ${PROJECT_SOURCE_DIR}/src/mbgl/util/bounding_volumes.cpp
     ${PROJECT_SOURCE_DIR}/src/mbgl/util/chrono.cpp
     ${PROJECT_SOURCE_DIR}/src/mbgl/util/color.cpp
     ${PROJECT_SOURCE_DIR}/src/mbgl/util/constants.cpp
@@ -813,7 +829,9 @@ if(MBGL_WITH_OPENGL)
             ${PROJECT_SOURCE_DIR}/include/mbgl/gl/custom_layer_factory.hpp
             ${PROJECT_SOURCE_DIR}/include/mbgl/gl/renderable_resource.hpp
             ${PROJECT_SOURCE_DIR}/include/mbgl/gl/renderer_backend.hpp
+            ${PROJECT_SOURCE_DIR}/include/mbgl/layermanager/location_indicator_layer_factory.hpp
             ${PROJECT_SOURCE_DIR}/include/mbgl/platform/gl_functions.hpp
+            ${PROJECT_SOURCE_DIR}/include/mbgl/style/layers/location_indicator_layer.hpp
             ${PROJECT_SOURCE_DIR}/src/mbgl/gl/attribute.cpp
             ${PROJECT_SOURCE_DIR}/src/mbgl/gl/attribute.hpp
             ${PROJECT_SOURCE_DIR}/src/mbgl/gl/command_encoder.cpp
@@ -839,12 +857,12 @@ if(MBGL_WITH_OPENGL)
             ${PROJECT_SOURCE_DIR}/src/mbgl/gl/offscreen_texture.cpp
             ${PROJECT_SOURCE_DIR}/src/mbgl/gl/offscreen_texture.hpp
             ${PROJECT_SOURCE_DIR}/src/mbgl/gl/program.hpp
+            ${PROJECT_SOURCE_DIR}/src/mbgl/gl/render_custom_layer.cpp
+            ${PROJECT_SOURCE_DIR}/src/mbgl/gl/render_custom_layer.hpp
             ${PROJECT_SOURCE_DIR}/src/mbgl/gl/render_pass.cpp
             ${PROJECT_SOURCE_DIR}/src/mbgl/gl/render_pass.hpp
             ${PROJECT_SOURCE_DIR}/src/mbgl/gl/renderbuffer_resource.hpp
             ${PROJECT_SOURCE_DIR}/src/mbgl/gl/renderer_backend.cpp
-            ${PROJECT_SOURCE_DIR}/src/mbgl/gl/render_custom_layer.cpp
-            ${PROJECT_SOURCE_DIR}/src/mbgl/gl/render_custom_layer.hpp
             ${PROJECT_SOURCE_DIR}/src/mbgl/gl/state.hpp
             ${PROJECT_SOURCE_DIR}/src/mbgl/gl/texture.cpp
             ${PROJECT_SOURCE_DIR}/src/mbgl/gl/texture.hpp
@@ -862,6 +880,7 @@ if(MBGL_WITH_OPENGL)
             ${PROJECT_SOURCE_DIR}/src/mbgl/gl/vertex_array_extension.hpp
             ${PROJECT_SOURCE_DIR}/src/mbgl/gl/vertex_buffer_resource.cpp
             ${PROJECT_SOURCE_DIR}/src/mbgl/gl/vertex_buffer_resource.hpp
+            ${PROJECT_SOURCE_DIR}/src/mbgl/layermanager/location_indicator_layer_factory.cpp
             ${PROJECT_SOURCE_DIR}/src/mbgl/platform/gl_functions.cpp
             ${PROJECT_SOURCE_DIR}/src/mbgl/programs/gl/background.cpp
             ${PROJECT_SOURCE_DIR}/src/mbgl/programs/gl/background_pattern.cpp
@@ -894,6 +913,13 @@ if(MBGL_WITH_OPENGL)
             ${PROJECT_SOURCE_DIR}/src/mbgl/programs/gl/symbol_sdf_icon.cpp
             ${PROJECT_SOURCE_DIR}/src/mbgl/programs/gl/symbol_sdf_text.cpp
             ${PROJECT_SOURCE_DIR}/src/mbgl/programs/gl/symbol_text_and_icon.cpp
+            ${PROJECT_SOURCE_DIR}/src/mbgl/renderer/layers/render_location_indicator_layer.cpp
+            ${PROJECT_SOURCE_DIR}/src/mbgl/renderer/layers/render_location_indicator_layer.hpp
+            ${PROJECT_SOURCE_DIR}/src/mbgl/style/layers/location_indicator_layer.cpp
+            ${PROJECT_SOURCE_DIR}/src/mbgl/style/layers/location_indicator_layer_impl.cpp
+            ${PROJECT_SOURCE_DIR}/src/mbgl/style/layers/location_indicator_layer_impl.hpp
+            ${PROJECT_SOURCE_DIR}/src/mbgl/style/layers/location_indicator_layer_properties.cpp
+            ${PROJECT_SOURCE_DIR}/src/mbgl/style/layers/location_indicator_layer_properties.hpp
     )
 endif()
 
@@ -960,15 +986,13 @@ target_link_libraries(
         mbgl-vendor-vector-tile
         mbgl-vendor-wagyu
     PUBLIC
+        Mapbox::Base
         Mapbox::Base::Extras::expected-lite
         Mapbox::Base::Extras::rapidjson
         Mapbox::Base::geojson.hpp
         Mapbox::Base::geometry.hpp
         Mapbox::Base::optional
-        Mapbox::Base::typewrapper
-        Mapbox::Base::value
         Mapbox::Base::variant
-        Mapbox::Base::weak
 )
 
 set_target_properties(

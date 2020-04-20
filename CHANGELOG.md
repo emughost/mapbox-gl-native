@@ -4,6 +4,105 @@
 
 ### ✨ New features
 
+- [core] Move logging off the main thread ([#16325](https://github.com/mapbox/mapbox-gl-native/pull/16325))
+
+- Add source property to limit parent's tile overscale factor ([#16347](https://github.com/mapbox/mapbox-gl-native/pull/16347))
+
+  The new property sets a limit for how much parent tile can be overscaled.
+
+- [core][tile mode] Introduce API to collect placed symbols data ([#16339](https://github.com/mapbox/mapbox-gl-native/pull/16339))
+
+  The following methods are added to the `Renderer` class in implemented in the Tile map mode:
+  - `collectPlacedSymbolData()`
+    enables or disables collecting of the placed symbols data
+
+  - `getPlacedSymbolsData()`
+    if collecting of the placed symbols data is enabled, returns the reference to the `PlacedSymbolData` vector holding the collected data.
+
+- [core] Enable circle-sort-key property [#15875](https://github.com/mapbox/mapbox-gl-native/pull/15875/)
+
+  Adds support for `circle-sort-key` property, consistent with `symbol-sort-key`.
+
+  Sorts drawing order by sort key both within-tile and cross-tile.
+
+- Add generic setter for Layer's 'source' property ([#16406](https://github.com/mapbox/mapbox-gl-native/pull/16406)
+
+### 🐞 Bug fixes
+
+- [core][tile mode] Reduce cut-off labels (part 2) ([#16369](https://github.com/mapbox/mapbox-gl-native/pull/16369))
+
+  Now, the intersecting symbols are placed across all layers _symbol by symbol_ according to the following rules:
+
+  1. First we look, which of the tile border(s) the symbol intersects and prioritize the the symbol placement accordingly (high priority -> low priority): `vertical & horizontal -> vertical -> horizontal`
+  2. For the symbols that intersect the same tile border(s), assuming the tile border split symbol into several sections, we look at the minimal section length. The symbol with a larger minimal section length is placed first.
+  3. For the symbols that intersect the same tile border(s), and have equal minimal section length, we look at the anchor coordinates.
+  4. Finally, if all the previous criteria are the same, we look at the symbol key hashes.
+
+- [core][tile mode] Fix variable placement for labels with the `icon-text-fit` property set ([#16382](https://github.com/mapbox/mapbox-gl-native/pull/16382))
+
+  The `symbolIntersectsTileEdges()` util in `mbgl::TilePlacement` now considers icon shift for the variable symbols with enabled icon-text-fit setting, thus providing more accurate results.
+
+- [core] Correctly log a warning instead of crashing when a non-existent image is attempted to be removed. ([#16391](https://github.com/mapbox/mapbox-gl-native/pull/16391))
+
+## maps-v1.5.1
+
+### 🐞 Bug fixes
+
+- [core] Fix assert in gfx resources cleanup ([#16349](https://github.com/mapbox/mapbox-gl-native/pull/16349))
+
+  Fix a resource leak assertion in `gl::Context::~Context()` that is evaluating false in scenarios where graphics context has been marked as lost.
+
+- Hillshade bucket fix for mapbox-gl-native-ios #240 ([#16362](https://github.com/mapbox/mapbox-gl-native/pull/16362))
+
+  When dem tiles are loaded, border in neighboring tiles is updated, too leading to bucket re-upload. if std::move moved indices / vertices previously, they are empty and we get crash. Re-upload requires that only DEM texture is re-uploaded, not the quad vertices and indices.
+
+## maps-v1.5.0
+
+### ✨ New features
+
+- [core] Add Renderer::clearData() ([#16323](https://github.com/mapbox/mapbox-gl-native/pull/16323))
+
+  The newly added `Renderer::clearData()` method allows to clear render data and thus save memory and make sure outdated tiles are not shown. It clears data more agressively than `Renderer::reduceMemoryUse()` does, as it clears not only the cache but all orchestration data, including the data used by the currently rendered frame.
+
+- [android] Add jni binding for styleable snapshotter ([#16286](https://github.com/mapbox/mapbox-gl-native/pull/16286))
+
+- [core] Ability to set generic layer properties using setProperty method ([#16324](https://github.com/mapbox/mapbox-gl-native/pull/16324))
+  This change enables the following new keys for the `mbgl::Layer::setProperty()` API:
+  - "filter" invokes `setFilter()`
+  - "minzoom" invokes `setMinZoom()`
+  - "maxzoom" invokes `setMaxZoom()`
+  - "source-layer" invokes `setSourceLayer()`
+
+  The newly-added API is used in the style-conversion code, which made this code much simpler.
+
+- [android] Expose getLayer, getSource and Observer interface for snapshotter ([#16338](https://github.com/mapbox/mapbox-gl-native/pull/16338))
+
+### 🐞 Bug fixes
+
+- [core] Use `TileCoordinates` instead of `LngLat` for `within` expression calculation ([#16319](https://github.com/mapbox/mapbox-gl-native/pull/16319))
+
+  Fix the issue that `within` expression evaluates point features inconsistently across zoom levels if the point lies near the boundary of a GeoJSON object ([#16301](https://github.com/mapbox/mapbox-gl-native/issues/16301))
+
+- [core][tile mode] Reduce cut-off labels ([#16336](https://github.com/mapbox/mapbox-gl-native/pull/16336))
+
+  Place tile intersecting labels first, across all the layers. Thus we reduce the amount of label cut-offs in Tile mode.
+
+  Before, labels were arranged within one symbol layer (one bucket),which was not enough for several symbol layers being placed at the same time.
+
+- [core] Fix issue that `within` expression returns incorrect results for geometries crossing the anti-meridian ([#16330](https://github.com/mapbox/mapbox-gl-native/pull/16330))
+
+## maps-v1.4.1
+
+### 🐞 Bug fixes
+
+- [android] Fix wrong method call in map_snapshotter ([#16308](https://github.com/mapbox/mapbox-gl-native/pull/16308))
+
+  In map_snapshotter, a wrong method call will cause Sanpshotter not works with a style url in Android. This change makes it call the right method to let Snapshotter works.
+
+## maps-v1.4.0
+
+### ✨ New features
+
 - [android] Add jni binding for line-sort-key and fill-sort-key ([#16256](https://github.com/mapbox/mapbox-gl-native/pull/16256))
 
   With this change, android sdk will be able to get sort key for LineLayer and FillLayer.
@@ -11,6 +110,10 @@
 - Styleable MapSnapshotter ([#16268](https://github.com/mapbox/mapbox-gl-native/pull/16268))
 
   New feature provides means of modifying style of a MapSnapshotter. The new API enables several use-cases, such as: adding route overlays, removing extra information (layers) from a base style, adding custom images that are missing from a style.
+
+- [core] Improve stability of symbol placement when the map is tilted ([#16287](https://github.com/mapbox/mapbox-gl-native/pull/16287))
+
+  These changes improve performance and bring more stability to the symbol placement for the tilted view, which is mainly used for navigation scenarios.
 
 ### 🐞 Bug fixes
 
@@ -20,17 +123,17 @@
 
 - [default] Fix possible crash at RunLoop::wake() ([#16255](https://github.com/mapbox/mapbox-gl-native/pull/16255))
 
-- [android] Update toGeoJSON in android_conversion.hpp [#16243](https://github.com/mapbox/mapbox-gl-native/pull/16243)
+- [android] Update toGeoJSON in android_conversion.hpp ([#16243](https://github.com/mapbox/mapbox-gl-native/pull/16243))
   
-  Before this chage, `toGeoJSON` method in `android_conversion.hpp` can't convert Object(Map in android) to GeoJSON object. 
+  Before this chage, `toGeoJSON` method in `android_conversion.hpp` could not convert an Object (Map in android) to GeoJSON object. 
   
-  But `within` expression need to accept an Object and then convert to GeoJSON object, now `toGeoJSON` method can convert both string and Object to GeoJSON.
+  But `within` expression needs to accept an Object and then convert it to the GeoJSON object, now `toGeoJSON` method can convert both string and Object to GeoJSON.
 
 - [core] Fix `within` expression algorithm so that `false` value will be returned when point is on the boundary.  Allow using different GeoJSON formats as arguments of `within` expression.([#16232](https://github.com/mapbox/mapbox-gl-native/pull/16232))
 
   A valid GeoJSON argument should contain one of the following types:  `"Feature"`, `"FeatureCollection"`,`"Polygon"` or `"MultiPolygon"`.
 
-- [core] [tile mode] placement algorithm must consider icons bounding boxes [#16277](https://github.com/mapbox/mapbox-gl-native/pull/16277)
+- [core] [tile mode] placement algorithm must consider icons bounding boxes ([#16277](https://github.com/mapbox/mapbox-gl-native/pull/16277))
 
   Tile mode placement algorithm now checks if bounding boxes for both label text and icon are intersecting the edges of the tiles.
 
@@ -39,6 +142,14 @@
 - [core] Calculate size of an ambient cache without offline region's resources ([#15622](https://github.com/mapbox/mapbox-gl-native/pull/15622))
 
   Resources that belong to an offline region, should not contribute to the amount of space available in the ambient cache.
+
+ - [core][tile mode] Fix assertion at `line-center` placement handling ([#16293](https://github.com/mapbox/mapbox-gl-native/pull/16293))
+
+  The `Symbol Intersects Tile Edges` placement algorithm should not be applied to the symbols with `line-center` placement.
+
+ - Fixed using of the `in` expression as a layer filter ([#16272](https://github.com/mapbox/mapbox-gl-native/pull/16272))
+
+  The bug was caused by `mbgl::style::conversion::isExpression()` always returning `false` for the `in` expression.
 
 ### 🧩  Architectural changes
 
@@ -51,6 +162,11 @@
 - Signature of a `MapSnapshotter`'s constructor has been changed
 - Signature for a `MapSnapshotter::snapshot` method has been changed
 - Size of an offline regions do not affect ambient cache size ([#15622](https://github.com/mapbox/mapbox-gl-native/pull/15622))
+  
+##### 📌 Known issues
+
+- When feature is exactly on the geometry boundary, `within` expression returns inconsistent values for different zoom levels  ([#16301](https://github.com/mapbox/mapbox-gl-native/issues/16301))
+
 
 ## maps-v1.3.0 (2020.02-relvanillashake)
 

@@ -210,7 +210,7 @@ SymbolLayout::SymbolLayout(const BucketParameters& parameters,
 }
 
 bool SymbolLayout::hasDependencies() const {
-    return features.size() != 0;
+    return !features.empty();
 }
 
 bool SymbolLayout::hasSymbolInstances() const {
@@ -371,7 +371,7 @@ void SymbolLayout::prepareSymbols(const GlyphMap& glyphMap,
                                     WritingModeType writingMode,
                                     SymbolAnchorType textAnchor,
                                     TextJustifyType textJustify) {
-                const Shaping result = getShaping(
+                Shaping result = getShaping(
                     /* string */ formattedText,
                     /* maxWidth: ems */
                     isPointPlacement ? layout->evaluate<TextMaxWidth>(zoom, feature, canonicalID) * util::ONE_EM : 0.0f,
@@ -571,7 +571,7 @@ void SymbolLayout::addFeature(const std::size_t layoutFeatureIndex,
             verticallyShapedIcon->fitIconToText(
                 shapedTextOrientations.vertical, iconTextFit, layout->get<IconTextFitPadding>(), iconOffset, fontScale);
         }
-        const auto shapedText = getDefaultHorizontalShaping(shapedTextOrientations);
+        const auto& shapedText = getDefaultHorizontalShaping(shapedTextOrientations);
         if (shapedText) {
             shapedIcon->fitIconToText(
                 shapedText, iconTextFit, layout->get<IconTextFitPadding>(), iconOffset, fontScale);
@@ -695,6 +695,9 @@ void SymbolLayout::addFeature(const std::size_t layoutFeatureIndex,
         }
     } else if (type == FeatureType::LineString) {
         for (const auto& line : feature.geometry) {
+            // Skip invalid LineStrings.
+            if (line.empty()) continue;
+
             Anchor anchor(line[0].x, line[0].y, 0, minScale);
             addSymbolInstance(anchor, createSymbolInstanceSharedData(line));
         }
@@ -738,10 +741,12 @@ std::vector<float> SymbolLayout::calculateTileDistances(const GeometryCoordinate
                 sumForwardLength += util::dist<float>(line[i + 1], line[i]);
             }
         }
-        for (std::size_t i = ++segment; i-- > 0;) {
+        for (std::size_t i = segment;; --i) {
             tileDistances[i] = sumBackwardLength;
             if (i != 0u) {
                 sumBackwardLength += util::dist<float>(line[i - 1], line[i]);
+            } else {
+                break; // Add break to avoid unsigned integer overflow when i==0
             }
         }
     }
@@ -961,7 +966,7 @@ size_t SymbolLayout::addSymbol(SymbolBucket::Buffer& buffer,
 
     if (buffer.segments.empty() ||
         buffer.segments.back().vertexLength + vertexLength > std::numeric_limits<uint16_t>::max() ||
-        fabs(buffer.segments.back().sortKey - sortKey) > std::numeric_limits<float>::epsilon()) {
+        std::fabs(buffer.segments.back().sortKey - sortKey) > std::numeric_limits<float>::epsilon()) {
         buffer.segments.emplace_back(buffer.vertices.elements(), buffer.triangles.elements(), 0ul, 0ul, sortKey);
     }
 

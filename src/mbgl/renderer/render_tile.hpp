@@ -41,11 +41,11 @@ public:
     // Contains the tile ID string for painting debug information.
     std::unique_ptr<DebugBucket> debugBucket;
 
-    mat4 translatedMatrix(const std::array<float, 2>& translate,
+    mat4 translatedMatrix(const std::array<float, 2>& translation,
                           style::TranslateAnchorType anchor,
                           const TransformState&) const;
 
-    mat4 translatedClipMatrix(const std::array<float, 2>& translate,
+    mat4 translatedClipMatrix(const std::array<float, 2>& translation,
                               style::TranslateAnchorType anchor,
                               const TransformState&) const;
 
@@ -66,7 +66,7 @@ public:
                             const std::array<float, 2>& translation,
                             style::TranslateAnchorType anchor,
                             const TransformState& state,
-                            const bool inViewportPixelUnits) const;
+                            bool inViewportPixelUnits) const;
 
     void setFeatureState(const LayerFeatureStates&);
 

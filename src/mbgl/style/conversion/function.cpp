@@ -1,5 +1,6 @@
 #include <mbgl/style/conversion/function.hpp>
 #include <mbgl/style/conversion/position.hpp>
+#include <mbgl/style/conversion/rotation.hpp>
 #include <mbgl/style/conversion_impl.hpp>
 #include <mbgl/style/expression/case.hpp>
 #include <mbgl/style/expression/dsl.hpp>
@@ -12,6 +13,7 @@
 #include <mbgl/util/string.hpp>
 
 #include <cassert>
+#include <utility>
 
 namespace mbgl {
 namespace style {
@@ -158,6 +160,7 @@ template optional<PropertyExpression<Formatted>>
 template optional<PropertyExpression<std::vector<TextWritingModeType>>>
     convertFunctionToExpression<std::vector<TextWritingModeType>>(const Convertible&, Error&, bool);
 template optional<PropertyExpression<Image>> convertFunctionToExpression<Image>(const Convertible&, Error&, bool);
+template optional<PropertyExpression<Rotation>> convertFunctionToExpression<Rotation>(const Convertible&, Error&, bool);
 
 // Ad-hoc Converters for double and int64_t. We should replace float with double wholesale,
 // and promote the int64_t Converter to general use (and it should check that the input is
@@ -320,7 +323,7 @@ static optional<std::unique_ptr<Expression>> convertLiteral(type::Type type, con
         });
 }
 
-static optional<std::map<double, std::unique_ptr<Expression>>> convertStops(type::Type type,
+static optional<std::map<double, std::unique_ptr<Expression>>> convertStops(const type::Type& type,
                                                                             const Convertible& value,
                                                                             Error& error,
                                                                             bool convertTokens) {
@@ -382,7 +385,7 @@ static void omitFirstStop(std::map<double, std::unique_ptr<Expression>>& stops) 
 }
 
 template <class T>
-optional<std::map<T, std::unique_ptr<Expression>>> convertBranches(type::Type type,
+optional<std::map<T, std::unique_ptr<Expression>>> convertBranches(const type::Type& type,
                                                                    const Convertible& value,
                                                                    Error& error) {
     auto stopsValue = objectMember(value, "stops");
@@ -447,13 +450,15 @@ static optional<double> convertBase(const Convertible& value, Error& error) {
     return *base;
 }
 
-static std::unique_ptr<Expression> step(type::Type type, std::unique_ptr<Expression> input, std::map<double, std::unique_ptr<Expression>> stops) {
+static std::unique_ptr<Expression> step(const type::Type& type,
+                                        std::unique_ptr<Expression> input,
+                                        std::map<double, std::unique_ptr<Expression>> stops) {
     return std::make_unique<Step>(type, std::move(input), std::move(stops));
 }
 
 static std::unique_ptr<Expression> interpolate(type::Type type, Interpolator interpolator, std::unique_ptr<Expression> input, std::map<double, std::unique_ptr<Expression>> stops) {
     ParsingContext ctx;
-    auto result = createInterpolate(type, std::move(interpolator), std::move(input), std::move(stops), ctx);
+    auto result = createInterpolate(std::move(type), std::move(interpolator), std::move(input), std::move(stops), ctx);
     if (!result) {
         assert(false);
         return {};
@@ -462,7 +467,7 @@ static std::unique_ptr<Expression> interpolate(type::Type type, Interpolator int
 }
 
 template <class T>
-std::unique_ptr<Expression> categorical(type::Type type,
+std::unique_ptr<Expression> categorical(const type::Type& type,
                                         const std::string& property,
                                         std::map<T, std::unique_ptr<Expression>> branches,
                                         std::unique_ptr<Expression> def) {
@@ -477,7 +482,7 @@ std::unique_ptr<Expression> categorical(type::Type type,
 }
 
 template <>
-std::unique_ptr<Expression> categorical<bool>(type::Type type,
+std::unique_ptr<Expression> categorical<bool>(const type::Type& type,
                                               const std::string& property,
                                               std::map<bool, std::unique_ptr<Expression>> branches,
                                               std::unique_ptr<Expression> def) {
@@ -499,7 +504,7 @@ std::unique_ptr<Expression> categorical<bool>(type::Type type,
                                   def ? std::move(def) : error("replaced with default"));
 }
 
-static std::unique_ptr<Expression> numberOrDefault(type::Type type,
+static std::unique_ptr<Expression> numberOrDefault(const type::Type& type,
                                                    std::unique_ptr<Expression> get,
                                                    std::unique_ptr<Expression> expr,
                                                    std::unique_ptr<Expression> def) {
@@ -513,12 +518,13 @@ static std::unique_ptr<Expression> numberOrDefault(type::Type type,
     return std::make_unique<Case>(type, std::move(branches), std::move(def));
 }
 
-static optional<std::unique_ptr<Expression>> convertIntervalFunction(type::Type type,
-                                                                     const Convertible& value,
-                                                                     Error& error,
-                                                                     std::function<std::unique_ptr<Expression> (bool)> makeInput,
-                                                                     std::unique_ptr<Expression> def,
-                                                                     bool convertTokens = false) {
+static optional<std::unique_ptr<Expression>> convertIntervalFunction(
+    const type::Type& type,
+    const Convertible& value,
+    Error& error,
+    const std::function<std::unique_ptr<Expression>(bool)>& makeInput,
+    std::unique_ptr<Expression> def,
+    bool convertTokens = false) {
     auto stops = convertStops(type, value, error, convertTokens);
     if (!stops) {
         return nullopt;
@@ -531,12 +537,13 @@ static optional<std::unique_ptr<Expression>> convertIntervalFunction(type::Type 
                            std::move(def));
 }
 
-static optional<std::unique_ptr<Expression>> convertExponentialFunction(type::Type type,
-                                                                        const Convertible& value,
-                                                                        Error& error,
-                                                                        std::function<std::unique_ptr<Expression> (bool)> makeInput,
-                                                                        std::unique_ptr<Expression> def,
-                                                                        bool convertTokens = false) {
+static optional<std::unique_ptr<Expression>> convertExponentialFunction(
+    const type::Type& type,
+    const Convertible& value,
+    Error& error,
+    const std::function<std::unique_ptr<Expression>(bool)>& makeInput,
+    std::unique_ptr<Expression> def,
+    bool convertTokens = false) {
     auto stops = convertStops(type, value, error, convertTokens);
     if (!stops) {
         return nullopt;
@@ -552,7 +559,7 @@ static optional<std::unique_ptr<Expression>> convertExponentialFunction(type::Ty
                            std::move(def));
 }
 
-static optional<std::unique_ptr<Expression>> convertCategoricalFunction(type::Type type,
+static optional<std::unique_ptr<Expression>> convertCategoricalFunction(const type::Type& type,
                                                                         const Convertible& value,
                                                                         Error& err,
                                                                         const std::string& property,
@@ -849,9 +856,13 @@ optional<std::unique_ptr<Expression>> convertFunctionToExpression(type::Type typ
         if (toBool(*sourceValue)) {
             switch (functionType) {
             case FunctionType::Categorical:
-                return composite<bool>(type, value, err, [&] (type::Type type_, double, std::map<bool, std::unique_ptr<Expression>> stops) {
-                    return categorical<bool>(type_, *property, std::move(stops), defaultExpr());
-                });
+                return composite<bool>(
+                    type,
+                    value,
+                    err,
+                    [&](const type::Type& type_, double, std::map<bool, std::unique_ptr<Expression>> stops) {
+                        return categorical<bool>(type_, *property, std::move(stops), defaultExpr());
+                    });
             default:
                 err.message = "unsupported function type";
                 return nullopt;
@@ -861,24 +872,35 @@ optional<std::unique_ptr<Expression>> convertFunctionToExpression(type::Type typ
         if (toNumber(*sourceValue)) {
             switch (functionType) {
             case FunctionType::Interval:
-                return composite<double>(type, value, err, [&] (type::Type type_, double, std::map<double, std::unique_ptr<Expression>> stops) {
-                    omitFirstStop(stops);
-                    return numberOrDefault(type,
-                                           getProperty(false),
-                                           step(type_, getProperty(true), std::move(stops)),
-                                           defaultExpr());
-                });
+                return composite<double>(
+                    type,
+                    value,
+                    err,
+                    [&](const type::Type& type_, double, std::map<double, std::unique_ptr<Expression>> stops) {
+                        omitFirstStop(stops);
+                        return numberOrDefault(
+                            type, getProperty(false), step(type_, getProperty(true), std::move(stops)), defaultExpr());
+                    });
             case FunctionType::Exponential:
-                return composite<double>(type, value, err, [&] (type::Type type_, double base, std::map<double, std::unique_ptr<Expression>> stops) {
-                    return numberOrDefault(type,
-                                           getProperty(false),
-                                           interpolate(type_, exponential(base), getProperty(true), std::move(stops)),
-                                           defaultExpr());
-                });
+                return composite<double>(
+                    type,
+                    value,
+                    err,
+                    [&](type::Type type_, double base, std::map<double, std::unique_ptr<Expression>> stops) {
+                        return numberOrDefault(
+                            type,
+                            getProperty(false),
+                            interpolate(std::move(type_), exponential(base), getProperty(true), std::move(stops)),
+                            defaultExpr());
+                    });
             case FunctionType::Categorical:
-                return composite<int64_t>(type, value, err, [&] (type::Type type_, double, std::map<int64_t, std::unique_ptr<Expression>> stops) {
-                    return categorical<int64_t>(type_, *property, std::move(stops), defaultExpr());
-                });
+                return composite<int64_t>(
+                    type,
+                    value,
+                    err,
+                    [&](const type::Type& type_, double, std::map<int64_t, std::unique_ptr<Expression>> stops) {
+                        return categorical<int64_t>(type_, *property, std::move(stops), defaultExpr());
+                    });
             default:
                 err.message = "unsupported function type";
                 return nullopt;
@@ -888,9 +910,13 @@ optional<std::unique_ptr<Expression>> convertFunctionToExpression(type::Type typ
         if (toString(*sourceValue)) {
             switch (functionType) {
             case FunctionType::Categorical:
-                return composite<std::string>(type, value, err, [&] (type::Type type_, double, std::map<std::string, std::unique_ptr<Expression>> stops) {
-                    return categorical<std::string>(type_, *property, std::move(stops), defaultExpr());
-                });
+                return composite<std::string>(
+                    type,
+                    value,
+                    err,
+                    [&](const type::Type& type_, double, std::map<std::string, std::unique_ptr<Expression>> stops) {
+                        return categorical<std::string>(type_, *property, std::move(stops), defaultExpr());
+                    });
             default:
                 err.message = "unsupported function type";
                 return nullopt;

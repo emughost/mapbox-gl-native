@@ -14,6 +14,7 @@
 #include <mbgl/util/exception.hpp>
 #include <mbgl/util/logging.hpp>
 #include <mbgl/util/thread.hpp>
+#include <utility>
 
 namespace mbgl {
 
@@ -38,8 +39,8 @@ public:
         delegate.invoke(&RendererObserver::onDidFinishRenderingFrame, mode, repaintNeeded, placementChanged);
     }
 
-    void onStyleImageMissing(const std::string& image, StyleImageMissingCallback cb) override {
-        delegate.invoke(&RendererObserver::onStyleImageMissing, image, std::move(cb));
+    void onStyleImageMissing(const std::string& image, const StyleImageMissingCallback& cb) override {
+        delegate.invoke(&RendererObserver::onStyleImageMissing, image, cb);
     }
 
 private:
@@ -49,12 +50,12 @@ private:
 
 class SnapshotterRenderer final : public RendererObserver {
 public:
-    SnapshotterRenderer(Size size, float pixelRatio, optional<std::string> localFontFamily)
+    SnapshotterRenderer(Size size, float pixelRatio, const optional<std::string>& localFontFamily)
         : frontend(size,
                    pixelRatio,
                    gfx::HeadlessBackend::SwapBehaviour::NoFlush,
                    gfx::ContextMode::Unique,
-                   std::move(localFontFamily)) {}
+                   localFontFamily) {}
 
     void reset() {
         hasPendingStillImageRequest = false;
@@ -73,6 +74,10 @@ public:
             stillImage = frontend.readStillImage();
         }
         rendererObserver->onDidFinishRenderingFrame(mode, repaintNeeded, placementChanged);
+    }
+
+    void onStyleImageMissing(const std::string& id, const StyleImageMissingCallback& done) override {
+        rendererObserver->onStyleImageMissing(id, done);
     }
 
     void setObserver(std::shared_ptr<RendererObserver> observer) {
@@ -107,7 +112,7 @@ public:
         : renderer(std::make_unique<util::Thread<SnapshotterRenderer>>(
               "Snapshotter", size, pixelRatio, std::move(localFontFamily))) {}
 
-    ~SnapshotterRendererFrontend() = default;
+    ~SnapshotterRendererFrontend() override = default;
 
     void reset() override { renderer->actor().invoke(&SnapshotterRenderer::reset); }
 
@@ -178,11 +183,11 @@ public:
                                              Attributions attributions,
                                              PointForFn pfn,
                                              LatLngForFn latLonFn) {
-                cb(ptr, std::move(image), std::move(attributions), std::move(pfn), std::move(latLonFn));
+                cb(std::move(ptr), std::move(image), std::move(attributions), std::move(pfn), std::move(latLonFn));
                 renderStillCallback.reset();
             });
 
-        map.renderStill([this, actorRef = renderStillCallback->self()](std::exception_ptr error) {
+        map.renderStill([this, actorRef = renderStillCallback->self()](const std::exception_ptr& error) {
             // Create lambda that captures the current transform state
             // and can be used to translate for geographic to screen
             // coordinates

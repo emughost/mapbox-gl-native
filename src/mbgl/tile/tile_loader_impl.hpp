@@ -8,13 +8,11 @@
 
 #include <cassert>
 
-namespace {
+namespace mbgl {
+
 inline std::exception_ptr getCantLoadTileError() {
     return std::make_exception_ptr(std::runtime_error("Can't load tile."));
 }
-} // namespace
-
-namespace mbgl {
 
 template <typename T>
 TileLoader<T>::TileLoader(T& tile_,
@@ -67,7 +65,7 @@ void TileLoader<T>::loadFromCache() {
     }
 
     resource.loadingMethod = Resource::LoadingMethod::CacheOnly;
-    request = fileSource->request(resource, [this](Response res) {
+    request = fileSource->request(resource, [this](const Response& res) {
         request.reset();
 
         tile.setTriedCache();
@@ -137,7 +135,7 @@ void TileLoader<T>::loadFromNetwork() {
     // Instead of using Resource::LoadingMethod::All, we're first doing a CacheOnly, and then a
     // NetworkOnly request.
     resource.loadingMethod = Resource::LoadingMethod::NetworkOnly;
-    request = fileSource->request(resource, [this](Response res) { loadedData(res); });
+    request = fileSource->request(resource, [this](const Response& res) { loadedData(res); });
 }
 
 } // namespace mbgl

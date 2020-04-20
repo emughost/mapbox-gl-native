@@ -16,19 +16,27 @@
 
 namespace mbgl {
 
+namespace {
 // When a symbol crosses the edge that causes it to be included in
 // collision detection, it will cause changes in the symbols around
 // it. This constant specifies how many pixels to pad the edge of
 // the viewport for collision detection so that the bulk of the changes
 // occur offscreen. Making this constant greater increases label
 // stability, but it's expensive.
-static const float viewportPaddingDefault = 100;
+const float viewportPaddingDefault = 100;
 // Viewport padding must be much larger for static tiles to avoid clipped labels.
-static const float viewportPaddingForStaticTiles = 1024;
+const float viewportPaddingForStaticTiles = 1024;
+
+inline float findViewportPadding(const TransformState& transformState, MapMode mapMode) {
+    if (mapMode == MapMode::Tile) return viewportPaddingForStaticTiles;
+    return (transformState.getPitch() != 0.0f) ? viewportPaddingDefault * 2 : viewportPaddingDefault;
+}
+
+} // namespace
 
 CollisionIndex::CollisionIndex(const TransformState& transformState_, MapMode mapMode)
     : transformState(transformState_),
-      viewportPadding(mapMode == MapMode::Tile ? viewportPaddingForStaticTiles : viewportPaddingDefault),
+      viewportPadding(findViewportPadding(transformState_, mapMode)),
       collisionGrid(transformState.getSize().width + 2 * viewportPadding,
                     transformState.getSize().height + 2 * viewportPadding,
                     25),
@@ -96,13 +104,42 @@ inline bool CollisionIndex::overlapsTile(const CollisionBoundaries& boundaries,
            boundaries[1] < tileBoundaries[3] && boundaries[3] > tileBoundaries[1];
 }
 
-bool CollisionIndex::intersectsTileEdges(const CollisionBox& box,
-                                         Point<float> shift,
-                                         const mat4& posMatrix,
-                                         const float textPixelRatio,
-                                         const CollisionBoundaries& tileEdges) const {
-    auto collisionBoundaries = getProjectedCollisionBoundaries(posMatrix, shift, textPixelRatio, box);
-    return overlapsTile(collisionBoundaries, tileEdges) && !isInsideTile(collisionBoundaries, tileEdges);
+IntersectStatus CollisionIndex::intersectsTileEdges(const CollisionBox& box,
+                                                    Point<float> shift,
+                                                    const mat4& posMatrix,
+                                                    const float textPixelRatio,
+                                                    const CollisionBoundaries& tileEdges) const {
+    auto boundaries = getProjectedCollisionBoundaries(posMatrix, shift, textPixelRatio, box);
+    IntersectStatus result;
+    const float x1 = boundaries[0];
+    const float y1 = boundaries[1];
+    const float x2 = boundaries[2];
+    const float y2 = boundaries[3];
+
+    const float tileX1 = tileEdges[0];
+    const float tileY1 = tileEdges[1];
+    const float tileX2 = tileEdges[2];
+    const float tileY2 = tileEdges[3];
+
+    // Check left border
+    int minSectionLength = std::min(tileX1 - x1, x2 - tileX1);
+    if (minSectionLength <= 0) { // Check right border
+        minSectionLength = std::min(tileX2 - x1, x2 - tileX2);
+    }
+    if (minSectionLength > 0) {
+        result.flags |= IntersectStatus::VerticalBorders;
+        result.minSectionLength = minSectionLength;
+    }
+    // Check top border
+    minSectionLength = std::min(tileY1 - y1, y2 - tileY1);
+    if (minSectionLength <= 0) { // Check bottom border
+        minSectionLength = std::min(tileY2 - y1, y2 - tileY2);
+    }
+    if (minSectionLength > 0) {
+        result.flags |= IntersectStatus::HorizontalBorders;
+        result.minSectionLength = std::min(result.minSectionLength, minSectionLength);
+    }
+    return result;
 }
 
 std::pair<bool, bool> CollisionIndex::placeFeature(
@@ -118,7 +155,7 @@ std::pair<bool, bool> CollisionIndex::placeFeature(
     const bool pitchWithMap,
     const bool collisionDebug,
     const optional<CollisionBoundaries>& avoidEdges,
-    const optional<std::function<bool(const IndexedSubfeature&)>> collisionGroupPredicate,
+    const optional<std::function<bool(const IndexedSubfeature&)>>& collisionGroupPredicate,
     std::vector<ProjectedCollisionBox>& projectedBoxes) {
     assert(projectedBoxes.empty());
     if (!feature.alongLine) {
@@ -149,7 +186,7 @@ std::pair<bool, bool> CollisionIndex::placeLineFeature(
     const bool pitchWithMap,
     const bool collisionDebug,
     const optional<CollisionBoundaries>& avoidEdges,
-    const optional<std::function<bool(const IndexedSubfeature&)>> collisionGroupPredicate,
+    const optional<std::function<bool(const IndexedSubfeature&)>>& collisionGroupPredicate,
     std::vector<ProjectedCollisionBox>& projectedBoxes) {
     assert(feature.alongLine);
     assert(projectedBoxes.empty());
@@ -183,7 +220,8 @@ std::pair<bool, bool> CollisionIndex::placeLineFeature(
     // equivalent to pixel_to_tile_units
     const auto pixelsToTileUnits = 1 / (textPixelRatio * scale);
 
-    float firstTileDistance = 0, lastTileDistance = 0;
+    float firstTileDistance = 0.f;
+    float lastTileDistance = 0.f;
     if (firstAndLastGlyph) {
         firstTileDistance = approximateTileDistance(*(firstAndLastGlyph->first.tileDistance), firstAndLastGlyph->first.angle, pixelsToTileUnits, projectedAnchor.second, pitchWithMap);
         lastTileDistance = approximateTileDistance(*(firstAndLastGlyph->second.tileDistance), firstAndLastGlyph->second.angle, pixelsToTileUnits, projectedAnchor.second, pitchWithMap);
@@ -284,7 +322,7 @@ void CollisionIndex::insertFeature(const CollisionFeature& feature, const std::v
                 );
             }
         }
-    } else {
+    } else if (!projectedBoxes.empty()) {
         assert(projectedBoxes.size() == 1);
         auto& box = projectedBoxes[0];
         assert(box.isBox());

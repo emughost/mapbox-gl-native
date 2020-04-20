@@ -114,12 +114,11 @@ void RenderLineLayer::render(PaintParameters& parameters) {
 
             paintPropertyBinders.setPatternParameters(patternPositionA, patternPositionB, crossfade);
 
-            const auto allUniformValues = programInstance.computeAllUniformValues(
-                std::move(uniformValues),
-                paintPropertyBinders,
-                evaluated,
-                parameters.state.getZoom()
-            );
+            const auto allUniformValues =
+                programInstance.computeAllUniformValues(std::forward<decltype(uniformValues)>(uniformValues),
+                                                        paintPropertyBinders,
+                                                        evaluated,
+                                                        parameters.state.getZoom());
             const auto allAttributeBindings = programInstance.computeAllAttributeBindings(
                 *bucket.vertexBuffer,
                 paintPropertyBinders,
@@ -128,21 +127,19 @@ void RenderLineLayer::render(PaintParameters& parameters) {
 
             checkRenderability(parameters, programInstance.activeBindingCount(allAttributeBindings));
 
-            programInstance.draw(
-                parameters.context,
-                *parameters.renderPass,
-                gfx::Triangles(),
-                parameters.depthModeForSublayer(0, gfx::DepthMaskType::ReadOnly),
-                parameters.stencilModeForClipping(tile.id),
-                parameters.colorModeForRenderPass(),
-                gfx::CullFaceMode::disabled(),
-                *bucket.indexBuffer,
-                bucket.segments,
-                allUniformValues,
-                allAttributeBindings,
-                std::move(textureBindings),
-                getID()
-            );
+            programInstance.draw(parameters.context,
+                                 *parameters.renderPass,
+                                 gfx::Triangles(),
+                                 parameters.depthModeForSublayer(0, gfx::DepthMaskType::ReadOnly),
+                                 parameters.stencilModeForClipping(tile.id),
+                                 parameters.colorModeForRenderPass(),
+                                 gfx::CullFaceMode::disabled(),
+                                 *bucket.indexBuffer,
+                                 bucket.segments,
+                                 allUniformValues,
+                                 allAttributeBindings,
+                                 std::forward<decltype(textureBindings)>(textureBindings),
+                                 getID());
         };
 
         if (!evaluated.get<LineDasharray>().from.empty()) {
@@ -245,7 +242,7 @@ GeometryCollection offsetLine(const GeometryCollection& rings, double offset) {
             Point<double> extrude = util::unit(aToB + bToC);
 
             const double cosHalfAngle = extrude.x * bToC.x + extrude.y * bToC.y;
-            extrude *= (1.0 / cosHalfAngle);
+            extrude *= (cosHalfAngle != 0) ? (1.0 / cosHalfAngle) : 0;
 
             newRing.emplace_back(convertPoint<int16_t>(extrude * offset) + p);
         }

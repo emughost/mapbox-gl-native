@@ -29,6 +29,7 @@
 #include <mbgl/style/style.hpp>
 #include <mbgl/util/async_request.hpp>
 #include <mbgl/util/exception.hpp>
+#include <mbgl/util/logging.hpp>
 #include <mbgl/util/premultiply.hpp>
 
 #include <unistd.h>
@@ -314,7 +315,7 @@ NodeMap::RenderOptions NodeMap::ParseOptions(v8::Local<v8::Object> obj) {
         if (auto light = mbgl::style::conversion::convert<mbgl::style::Light>(lightObj, conversionError)) {
             options.light = *light;
         } else {
-            throw conversionError;
+            throw std::move(conversionError);
         }
     }
 
@@ -391,7 +392,7 @@ NodeMap::RenderOptions NodeMap::ParseOptions(v8::Local<v8::Object> obj) {
 
 class RenderRequest : public Nan::AsyncResource {
 public:
-    RenderRequest(v8::Local<v8::Function> callback_) : AsyncResource("mbgl:RenderRequest") {
+    explicit RenderRequest(v8::Local<v8::Function> callback_) : AsyncResource("mbgl:RenderRequest") {
         callback.Reset(callback_);
     }
     ~RenderRequest() {
@@ -443,7 +444,7 @@ void NodeMap::Render(const Nan::FunctionCallbackInfo<v8::Value>& info) {
         assert(!nodeMap->image.data);
         nodeMap->req = std::make_unique<RenderRequest>(Nan::To<v8::Function>(info[1]).ToLocalChecked());
 
-        nodeMap->startRender(std::move(options));
+        nodeMap->startRender(options);
     } catch (const mbgl::style::conversion::Error& err) {
         return Nan::ThrowTypeError(err.message.c_str());
     } catch (const mbgl::util::StyleParseException& ex) {
@@ -455,7 +456,7 @@ void NodeMap::Render(const Nan::FunctionCallbackInfo<v8::Value>& info) {
     info.GetReturnValue().SetUndefined();
 }
 
-void NodeMap::startRender(NodeMap::RenderOptions options) {
+void NodeMap::startRender(const NodeMap::RenderOptions& options) {
     frontend->setSize(options.size);
     map->setSize(options.size);
 
@@ -472,7 +473,7 @@ void NodeMap::startRender(NodeMap::RenderOptions options) {
 
     map->setProjectionMode(projectionOptions);
 
-    map->renderStill(camera, options.debugOptions, [this](const std::exception_ptr eptr) {
+    map->renderStill(camera, options.debugOptions, [this](const std::exception_ptr& eptr) {
         if (eptr) {
             error = eptr;
             uv_async_send(async);
@@ -1085,7 +1086,8 @@ void NodeMap::SetFeatureState(const Nan::FunctionCallbackInfo<v8::Value>& info) 
         return Nan::ThrowTypeError("Both arguments must be objects");
     }
 
-    std::string sourceID, featureID;
+    std::string sourceID;
+    std::string featureID;
     mbgl::optional<std::string> sourceLayerID;
     auto feature = Nan::To<v8::Object>(info[0]).ToLocalChecked();
     if (Nan::Has(feature, Nan::New("source").ToLocalChecked()).FromJust()) {
@@ -1185,7 +1187,8 @@ void NodeMap::GetFeatureState(const Nan::FunctionCallbackInfo<v8::Value>& info) 
         return Nan::ThrowTypeError("Argument must be object");
     }
 
-    std::string sourceID, featureID;
+    std::string sourceID;
+    std::string featureID;
     mbgl::optional<std::string> sourceLayerID;
     auto feature = Nan::To<v8::Object>(info[0]).ToLocalChecked();
     if (Nan::Has(feature, Nan::New("source").ToLocalChecked()).FromJust()) {
@@ -1243,7 +1246,9 @@ void NodeMap::RemoveFeatureState(const Nan::FunctionCallbackInfo<v8::Value>& inf
     }
 
     std::string sourceID;
-    mbgl::optional<std::string> sourceLayerID, featureID, stateKey;
+    mbgl::optional<std::string> sourceLayerID;
+    mbgl::optional<std::string> featureID;
+    mbgl::optional<std::string> stateKey;
     auto feature = Nan::To<v8::Object>(info[0]).ToLocalChecked();
     if (Nan::Has(feature, Nan::New("source").ToLocalChecked()).FromJust()) {
         auto sourceOption = Nan::Get(feature, Nan::New("source").ToLocalChecked()).ToLocalChecked();
@@ -1374,7 +1379,7 @@ void NodeMap::QueryRenderedFeatures(const Nan::FunctionCallbackInfo<v8::Value>& 
         }
 
         auto array = Nan::New<v8::Array>();
-        for (unsigned int i = 0; i < optional.size(); i++) {
+        for (std::size_t i = 0; i < optional.size(); i++) {
             array->Set(i, toJS(optional[i]));
         }
         info.GetReturnValue().Set(array);
@@ -1428,7 +1433,11 @@ NodeMap::NodeMap(v8::Local<v8::Object> options)
 }
 
 NodeMap::~NodeMap() {
-    if (map) release();
+    try {
+        if (map) release();
+    } catch (...) {
+        mbgl::Log::Error(mbgl::Event::General, "Error release the map object when destroying NodeMap");
+    }
 }
 
 std::unique_ptr<mbgl::AsyncRequest> NodeFileSource::request(const mbgl::Resource& resource, mbgl::FileSource::Callback callback_) {

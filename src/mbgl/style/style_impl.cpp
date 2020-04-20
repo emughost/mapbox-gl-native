@@ -62,7 +62,7 @@ void Style::Impl::loadURL(const std::string& url_) {
     loaded = false;
     url = url_;
 
-    styleRequest = fileSource->request(Resource::style(url), [this](Response res) {
+    styleRequest = fileSource->request(Resource::style(url), [this](const Response& res) {
         // Don't allow a loaded, mutated style to be overwritten with a new version.
         if (mutated && loaded) {
             return;
@@ -190,7 +190,7 @@ Layer* Style::Impl::getLayer(const std::string& id) const {
     return layers.get(id);
 }
 
-Layer* Style::Impl::addLayer(std::unique_ptr<Layer> layer, optional<std::string> before) {
+Layer* Style::Impl::addLayer(std::unique_ptr<Layer> layer, const optional<std::string>& before) {
     // TODO: verify source
     if (Source* source = sources.get(layer->getSourceID())) {
         if (!source->supportsLayerType(layer->baseImpl->getTypeInfo())) {
@@ -293,7 +293,7 @@ void Style::Impl::removeImage(const std::string& id) {
     auto newImages = makeMutable<ImageImpls>(*images);
     auto found =
         std::find_if(newImages->begin(), newImages->end(), [&id](const auto& image) { return image->id == id; });
-    if (found == images->end()) {
+    if (found == newImages->end()) {
         Log::Warning(Event::General, "Image '%s' is not present in style, cannot remove", id.c_str());
         return;
     }

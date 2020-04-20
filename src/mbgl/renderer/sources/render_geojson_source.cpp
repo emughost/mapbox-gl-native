@@ -25,12 +25,14 @@ using FeatureExtensionGetterPtr = FeatureExtensionValue (*)(std::shared_ptr<styl
                                                             std::uint32_t,
                                                             const optional<std::map<std::string, Value>>&);
 
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
 FeatureExtensionValue getChildren(std::shared_ptr<style::GeoJSONData> clusterData,
                                   std::uint32_t clusterID,
                                   const optional<std::map<std::string, Value>>&) {
     return clusterData->getChildren(clusterID);
 }
 
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
 FeatureExtensionValue getLeaves(std::shared_ptr<style::GeoJSONData> clusterData,
                                 std::uint32_t clusterID,
                                 const optional<std::map<std::string, Value>>& args) {
@@ -44,13 +46,14 @@ FeatureExtensionValue getLeaves(std::shared_ptr<style::GeoJSONData> clusterData,
                                               static_cast<std::uint32_t>(*limit),
                                               static_cast<std::uint32_t>(*offset));
             }
-            return clusterData->getLeaves(clusterID, static_cast<std::uint32_t>(*limit));
+            return clusterData->getLeaves(clusterID, static_cast<std::uint32_t>(*limit), 0u);
         }
     }
 
-    return clusterData->getLeaves(clusterID);
+    return clusterData->getLeaves(clusterID, 10u, 0u);
 }
 
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
 FeatureExtensionValue getClusterExpansionZoom(std::shared_ptr<style::GeoJSONData> clusterData,
                                               std::uint32_t clusterID,
                                               const optional<std::map<std::string, Value>>&) {
@@ -115,7 +118,8 @@ void RenderGeoJSONSource::update(Immutable<style::Source::Impl> baseImpl_,
         [&, data_](const OverscaledTileID& tileID) {
             return std::make_unique<GeoJSONTile>(tileID, impl().id, parameters, data_);
         },
-        baseImpl->getPrefetchZoomDelta());
+        baseImpl->getPrefetchZoomDelta(),
+        baseImpl->getMaxOverscaleFactorForParentTiles());
 }
 
 mapbox::util::variant<Value, FeatureCollection>

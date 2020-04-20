@@ -1,3 +1,5 @@
+// clang-format off
+
 // This file is generated. Edit scripts/generate-style-code.js, then run `make style-code`.
 
 #include <mbgl/style/layers/hillshade_layer.hpp>
@@ -316,12 +318,9 @@ Value HillshadeLayer::serialize() const {
     return result;
 }
 
-optional<Error> HillshadeLayer::setProperty(const std::string& name, const Convertible& value) {
+optional<Error> HillshadeLayer::setPropertyInternal(const std::string& name, const Convertible& value) {
     const auto it = layerProperties.find(name.c_str());
-    if (it == layerProperties.end()) {
-        if (name == "visibility") return setVisibility(value);
-        return Error{"layer doesn't support this property"};
-    }
+    if (it == layerProperties.end()) return Error{"layer doesn't support this property"};
 
     auto property = static_cast<Property>(it->second);
 
@@ -425,3 +424,5 @@ Mutable<Layer::Impl> HillshadeLayer::mutableBaseImpl() const {
 
 } // namespace style
 } // namespace mbgl
+
+// clang-format on

@@ -21,6 +21,7 @@ class TransformState;
 class PatternAtlas;
 class LineAtlas;
 class SymbolBucket;
+class DynamicFeatureIndex;
 
 class LayerRenderData {
 public:
@@ -106,6 +107,8 @@ public:
         return false;
     };
 
+    virtual void populateDynamicRenderFeatureIndex(DynamicFeatureIndex&) const {}
+
     virtual void prepare(const LayerPrepareParameters&);
 
     const LayerPlacementData& getPlacementData() const { return placementData; }
@@ -145,5 +148,7 @@ private:
     // to a layer.
     bool hasRenderFailures = false;
 };
+
+using RenderLayerReferences = std::vector<std::reference_wrapper<RenderLayer>>;
 
 } // namespace mbgl

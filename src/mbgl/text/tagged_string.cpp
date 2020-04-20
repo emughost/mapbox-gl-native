@@ -12,7 +12,7 @@ namespace mbgl {
 
 void TaggedString::addTextSection(const std::u16string& sectionText,
                                   double scale,
-                                  FontStack fontStack,
+                                  const FontStack& fontStack,
                                   optional<Color> textColor) {
     styledText.first += sectionText;
     sections.emplace_back(scale, fontStack, std::move(textColor));
@@ -29,7 +29,7 @@ void TaggedString::addImageSection(const std::string& imageID) {
 
     styledText.first += *nextImageSectionCharCode;
     sections.emplace_back(imageID);
-    styledText.second.resize(styledText.first.size(), sections.size() - 1);
+    styledText.second.resize(styledText.first.size(), static_cast<uint8_t>(sections.size() - 1));
 }
 
 optional<char16_t> TaggedString::getNextImageSectionCharCode() {

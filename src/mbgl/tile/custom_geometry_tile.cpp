@@ -8,6 +8,8 @@
 #include <mbgl/style/custom_tile_loader.hpp>
 
 #include <mapbox/geojsonvt.hpp>
+
+#include <cassert>
 #include <utility>
 
 namespace mbgl {
@@ -17,7 +19,7 @@ CustomGeometryTile::CustomGeometryTile(const OverscaledTileID& overscaledTileID,
                                        const TileParameters& parameters,
                                        Immutable<style::CustomGeometrySource::TileOptions> options_,
                                        ActorRef<style::CustomTileLoader> loader_)
-    : GeometryTile(overscaledTileID, sourceID_, parameters),
+    : GeometryTile(overscaledTileID, std::move(sourceID_), parameters),
       necessity(TileNecessity::Optional),
       options(std::move(options_)),
       loader(std::move(loader_)),
@@ -32,7 +34,8 @@ void CustomGeometryTile::setTileData(const GeoJSON& geoJSON) {
 
     auto featureData = mapbox::feature::feature_collection<int16_t>();
     if (geoJSON.is<FeatureCollection>() && !geoJSON.get<FeatureCollection>().empty()) {
-        const double scale = util::EXTENT / options->tileSize;
+        auto scale = util::EXTENT / options->tileSize;
+        assert(util::EXTENT % options->tileSize == 0);
 
         mapbox::geojsonvt::TileOptions vtOptions;
         vtOptions.extent = util::EXTENT;

@@ -41,7 +41,7 @@ public:
 
     std::unique_ptr<TileRenderData> createRenderData() override;
     void setLayers(const std::vector<Immutable<style::LayerProperties>>&) override;
-    void setShowCollisionBoxes(const bool showCollisionBoxes) override;
+    void setShowCollisionBoxes(bool showCollisionBoxes) override;
 
     void onGlyphsAvailable(GlyphMap) override;
     void onImagesAvailable(ImageMap, ImageMap, ImageVersionMap versionMap, uint64_t imageCorrelationID) override;
@@ -91,8 +91,8 @@ public:
     void markRenderedIdeal() override;
     void markRenderedPreviously() override;
     void performedFadePlacement() override;
-    const std::shared_ptr<FeatureIndex> getFeatureIndex() const;
-    
+    std::shared_ptr<FeatureIndex> getFeatureIndex() const;
+
     const std::string sourceID;
 
     void setFeatureState(const LayerFeatureStates&) override;

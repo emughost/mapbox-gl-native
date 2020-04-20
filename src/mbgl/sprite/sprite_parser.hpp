@@ -9,15 +9,15 @@ namespace mbgl {
 // Extracts an individual image from a spritesheet from the given location.
 std::unique_ptr<style::Image> createStyleImage(const std::string& id,
                                                const PremultipliedImage&,
-                                               uint32_t srcX,
-                                               uint32_t srcY,
-                                               uint32_t srcWidth,
-                                               uint32_t srcHeight,
+                                               int32_t srcX,
+                                               int32_t srcY,
+                                               int32_t srcWidth,
+                                               int32_t srcHeight,
                                                double ratio,
                                                bool sdf,
                                                style::ImageStretches&& stretchX = {},
                                                style::ImageStretches&& stretchY = {},
-                                               optional<style::ImageContent> content = nullopt);
+                                               const optional<style::ImageContent>& content = nullopt);
 
 // Parses an image and an associated JSON file and returns the sprite objects.
 std::vector<Immutable<style::Image::Impl>> parseSprite(const std::string& image, const std::string& json);

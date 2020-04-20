@@ -1,3 +1,5 @@
+// clang-format off
+
 // This file is generated. Edit scripts/generate-style-code.js, then run `make style-code`.
 
 #include <mbgl/style/layers/fill_layer.hpp>
@@ -371,12 +373,9 @@ Value FillLayer::serialize() const {
     return result;
 }
 
-optional<Error> FillLayer::setProperty(const std::string& name, const Convertible& value) {
+optional<Error> FillLayer::setPropertyInternal(const std::string& name, const Convertible& value) {
     const auto it = layerProperties.find(name.c_str());
-    if (it == layerProperties.end()) {
-        if (name == "visibility") return setVisibility(value);
-        return Error{"layer doesn't support this property"};
-    }
+    if (it == layerProperties.end()) return Error{"layer doesn't support this property"};
 
     auto property = static_cast<Property>(it->second);
 
@@ -509,3 +508,5 @@ Mutable<Layer::Impl> FillLayer::mutableBaseImpl() const {
 
 } // namespace style
 } // namespace mbgl
+
+// clang-format on

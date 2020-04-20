@@ -11,7 +11,7 @@
 
 #include <vector>
 
-#include <mapbox/weak.hpp>
+#include <mapbox/std/weak.hpp>
 
 namespace mbgl {
 
@@ -42,7 +42,7 @@ public:
     
     // For still image requests, render requested
     const bool stillImageRequest;
-    
+
     const bool crossSourceCollisions;
 };
 

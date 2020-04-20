@@ -76,8 +76,7 @@ CrossTileSymbolLayerIndex::CrossTileSymbolLayerIndex(uint32_t& maxCrossTileID_) 
  * so that they match the new wrapped version of the map.
  */
 void CrossTileSymbolLayerIndex::handleWrapJump(float newLng) {
-
-    const int wrapDelta = ::round((newLng - lng) / 360);
+    const int wrapDelta = std::round((newLng - lng) / 360);
     if (wrapDelta != 0) {
         std::map<uint8_t, std::map<OverscaledTileID,TileLayerIndex>> newIndexes;
         for (auto& zoomIndex : indexes) {
@@ -185,7 +184,7 @@ bool CrossTileSymbolLayerIndex::addBucket(const OverscaledTileID& tileID,
 }
 
 void CrossTileSymbolLayerIndex::removeBucketCrossTileIDs(uint8_t zoom, const TileLayerIndex& removedBucket) {
-    for (auto key : removedBucket.indexedSymbolInstances) {
+    for (const auto& key : removedBucket.indexedSymbolInstances) {
         for (auto indexedSymbolInstance : key.second) {
             usedCrossTileIDs[zoom].erase(indexedSymbolInstance.crossTileID);
         }

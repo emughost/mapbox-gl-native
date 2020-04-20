@@ -24,6 +24,7 @@
 #include <cassert>
 #include <list>
 #include <map>
+#include <utility>
 
 namespace mbgl {
 
@@ -77,7 +78,7 @@ public:
 
     ~OnlineFileSourceThread() { NetworkStatus::Unsubscribe(&reachability); }
 
-    void request(AsyncRequest* req, Resource resource, ActorRef<FileSourceRequest> ref) {
+    void request(AsyncRequest* req, Resource resource, const ActorRef<FileSourceRequest>& ref) {
         auto callback = [ref](const Response& res) { ref.invoke(&FileSourceRequest::setResponse, res); };
         tasks[req] = std::make_unique<OnlineFileRequest>(std::move(resource), std::move(callback), *this);
     }
@@ -127,7 +128,7 @@ public:
     void queueRequest(OnlineFileRequest* req) { pendingRequests.insert(req); }
 
     void activateRequest(OnlineFileRequest* req) {
-        auto callback = [=](Response response) {
+        auto callback = [=](const Response& response) {
             activeRequests.erase(req);
             req->request.reset();
             req->completed(response);
@@ -212,7 +213,7 @@ private:
     //                              firstLowPriorityRequest
 
     struct PendingRequests {
-        PendingRequests() : queue(), firstLowPriorityRequest(queue.begin()) {}
+        PendingRequests() : firstLowPriorityRequest(queue.begin()) {}
 
         std::list<OnlineFileRequest*> queue;
         std::list<OnlineFileRequest*>::iterator firstLowPriorityRequest;
@@ -244,7 +245,7 @@ private:
 
         optional<OnlineFileRequest*> pop() {
             if (queue.empty()) {
-                return optional<OnlineFileRequest*>();
+                return {};
             }
 
             if (queue.begin() == firstLowPriorityRequest) {
@@ -253,7 +254,7 @@ private:
 
             OnlineFileRequest* next = queue.front();
             queue.pop_front();
-            return optional<OnlineFileRequest*>(next);
+            return {next};
         }
 
         bool contains(OnlineFileRequest* request) const {
@@ -334,7 +335,7 @@ public:
     void setMaximumConcurrentRequests(const mapbox::base::Value& value) {
         if (auto* maximumConcurrentRequests = value.getUint()) {
             assert(*maximumConcurrentRequests < std::numeric_limits<uint32_t>::max());
-            const uint32_t maxConcurretnRequests = static_cast<uint32_t>(*maximumConcurrentRequests);
+            const auto maxConcurretnRequests = static_cast<uint32_t>(*maximumConcurrentRequests);
             thread->actor().invoke(&OnlineFileSourceThread::setMaximumConcurrentRequests, maxConcurretnRequests);
             {
                 std::lock_guard<std::mutex> lock(maximumConcurrentRequestsMutex);
@@ -439,7 +440,7 @@ void OnlineFileRequest::schedule(optional<Timestamp> expires) {
     // If we're not being asked for a forced refresh, calculate a timeout that depends on how many
     // consecutive errors we've encountered, and on the expiration time, if present.
     Duration timeout = std::min(http::errorRetryTimeout(failedRequestReason, failedRequests, retryAfter),
-                                http::expirationTimeout(expires, expiredRequests));
+                                http::expirationTimeout(std::move(expires), expiredRequests));
 
     if (timeout == Duration::max()) {
         return;

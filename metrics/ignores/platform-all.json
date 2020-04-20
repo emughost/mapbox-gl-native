@@ -55,7 +55,6 @@
     "render-tests/background-color/transition": "https://github.com/mapbox/mapbox-gl-native/issues/10619",
     "render-tests/canvas/default": "skip - js specific",
     "render-tests/canvas/update": "skip - js specific",
-    "render-tests/circle-sort-key/literal": "https://github.com/mapbox/mapbox-gl-native/issues/15008",
     "render-tests/collator/default": "Some test platforms don't resolve 'en' locale",
     "render-tests/collator/resolved-locale": "Some test platforms don't resolve 'en' locale",
     "render-tests/custom-layer-js/depth": "skip - js specific",
@@ -130,7 +129,6 @@
     "render-tests/feature-state/promote-id-line": "https://github.com/mapbox/mapbox-gl-js/pull/9202",
     "render-tests/feature-state/promote-id-circle": "https://github.com/mapbox/mapbox-gl-js/pull/9202",
     "render-tests/feature-state/promote-id-fill-extrusion": "https://github.com/mapbox/mapbox-gl-js/pull/9202",
-    "render-tests/text-variable-anchor/left-top-right-bottom-offset-tile-map-mode":"https://github.com/mapbox/mapbox-gl-js/pull/9202",
     "render-tests/line-pattern/with-dasharray":"https://github.com/mapbox/mapbox-gl-js/pull/9189",
     "render-tests/symbol-sort-key/placement-tile-boundary-right-then-left": "https://github.com/mapbox/mapbox-gl-js/pull/9054",
     "render-tests/tile-mode/streets-v11": "ignored due to flaky metrics results"

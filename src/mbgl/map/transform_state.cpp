@@ -70,8 +70,11 @@ void TransformState::matrixFor(mat4& matrix, const UnwrappedTileID& tileID) cons
     const double s = Projection::worldSize(scale) / tileScale;
 
     matrix::identity(matrix);
-    matrix::translate(
-        matrix, matrix, int64_t(tileID.canonical.x + tileID.wrap * tileScale) * s, int64_t(tileID.canonical.y) * s, 0);
+    matrix::translate(matrix,
+                      matrix,
+                      int64_t(tileID.canonical.x + tileID.wrap * static_cast<int64_t>(tileScale)) * s,
+                      int64_t(tileID.canonical.y) * s,
+                      0);
     matrix::scale(matrix, matrix, s / util::EXTENT, s / util::EXTENT, 1);
 }
 
@@ -81,7 +84,7 @@ void TransformState::getProjMatrix(mat4& projMatrix, uint16_t nearZ, bool aligne
     }
 
     const double cameraToCenterDistance = getCameraToCenterDistance();
-    auto offset = getCenterOffset();
+    const ScreenCoordinate offset = getCenterOffset();
 
     // Find the Z distance from the viewport center point
     // [width/2 + offset.x, height/2 + offset.y] to the top edge; to point
@@ -131,7 +134,8 @@ void TransformState::getProjMatrix(mat4& projMatrix, uint16_t nearZ, bool aligne
 
     matrix::rotate_z(projMatrix, projMatrix, getBearing() + getNorthOrientationAngle());
 
-    const double dx = pixel_x() - size.width / 2.0f, dy = pixel_y() - size.height / 2.0f;
+    const double dx = pixel_x() - size.width / 2.0f;
+    const double dy = pixel_y() - size.height / 2.0f;
     matrix::translate(projMatrix, projMatrix, dx, dy, 0);
 
     if (axonometric) {
@@ -153,8 +157,10 @@ void TransformState::getProjMatrix(mat4& projMatrix, uint16_t nearZ, bool aligne
     // of the transformation so that 0°, 90°, 180°, and 270° rasters are crisp, and adjust the shift so that
     // it is always <= 0.5 pixels.
     if (aligned) {
-        const float xShift = float(size.width % 2) / 2, yShift = float(size.height % 2) / 2;
-        const double bearingCos = std::cos(bearing), bearingSin = std::sin(bearing);
+        const float xShift = float(size.width % 2) / 2;
+        const float yShift = float(size.height % 2) / 2;
+        const double bearingCos = std::cos(bearing);
+        const double bearingSin = std::sin(bearing);
         double devNull;
         const float dxa = -std::modf(dx, &devNull) + bearingCos * xShift + bearingSin * yShift;
         const float dya = -std::modf(dy, &devNull) + bearingCos * yShift + bearingSin * xShift;
@@ -168,15 +174,23 @@ void TransformState::updateMatricesIfNeeded() const {
     getProjMatrix(projectionMatrix);
     coordMatrix = coordinatePointMatrix(projectionMatrix);
 
-    bool err = matrix::invert(invertedMatrix, coordMatrix);
+    bool err = matrix::invert(invProjectionMatrix, projectionMatrix);
+    if (err) throw std::runtime_error("failed to invert projectionMatrix");
 
+    err = matrix::invert(invertedMatrix, coordMatrix);
     if (err) throw std::runtime_error("failed to invert coordinatePointMatrix");
+
     requestMatricesUpdate = false;
 }
 
 const mat4& TransformState::getProjectionMatrix() const {
     updateMatricesIfNeeded();
     return projectionMatrix;
+}
+
+const mat4& TransformState::getInvProjectionMatrix() const {
+    updateMatricesIfNeeded();
+    return invProjectionMatrix;
 }
 
 const mat4& TransformState::getCoordMatrix() const {
@@ -255,7 +269,7 @@ void TransformState::setViewportMode(ViewportMode val) {
 
 #pragma mark - Camera options
 
-CameraOptions TransformState::getCameraOptions(optional<EdgeInsets> padding) const {
+CameraOptions TransformState::getCameraOptions(const optional<EdgeInsets>& padding) const {
     return CameraOptions()
         .withCenter(getLatLng())
         .withPadding(padding ? padding : edgeInsets)
@@ -498,11 +512,15 @@ double TransformState::scaleZoom(double s) const {
 }
 
 ScreenCoordinate TransformState::latLngToScreenCoordinate(const LatLng& latLng) const {
+    vec4 p;
+    return latLngToScreenCoordinate(latLng, p);
+}
+
+ScreenCoordinate TransformState::latLngToScreenCoordinate(const LatLng& latLng, vec4& p) const {
     if (size.isEmpty()) {
         return {};
     }
 
-    vec4 p;
     Point<double> pt = Projection::project(latLng, scale) / util::tileSize;
     vec4 c = {{pt.x, pt.y, 0, 1}};
     matrix::transformMat4(p, c, getCoordMatrix());

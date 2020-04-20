@@ -7,6 +7,8 @@
 #include <mbgl/text/glyph_atlas.hpp>
 #include <mbgl/text/placement.hpp>
 
+#include <utility>
+
 namespace mbgl {
 
 using namespace style;
@@ -21,7 +23,7 @@ SymbolBucket::SymbolBucket(Immutable<style::SymbolLayoutProperties::PossiblyEval
                            float zoom,
                            bool iconsNeedLinear_,
                            bool sortFeaturesByY_,
-                           const std::string bucketName_,
+                           std::string bucketName_,
                            const std::vector<SymbolInstance>&& symbolInstances_,
                            const std::vector<SortKeyRange>&& sortKeyRanges_,
                            float tilePixelRatio_,
@@ -29,7 +31,7 @@ SymbolBucket::SymbolBucket(Immutable<style::SymbolLayoutProperties::PossiblyEval
                            std::vector<style::TextWritingModeType> placementModes_,
                            bool iconsInText_)
     : layout(std::move(layout_)),
-      bucketLeaderID(bucketName_),
+      bucketLeaderID(std::move(bucketName_)),
       iconsNeedLinear(iconsNeedLinear_ || iconSize.isDataDriven() || !iconSize.isZoomConstant()),
       sortFeaturesByY(sortFeaturesByY_),
       staticUploaded(false),
@@ -281,8 +283,8 @@ SymbolInstanceReferences SymbolBucket::getSortedSymbols(const float angle) const
     const float cos = std::cos(angle);
 
     std::sort(result.begin(), result.end(), [sin, cos](const SymbolInstance& a, const SymbolInstance& b) {
-        const auto aRotated = ::lround(sin * a.anchor.point.x + cos * a.anchor.point.y);
-        const auto bRotated = ::lround(sin * b.anchor.point.x + cos * b.anchor.point.y);
+        const auto aRotated = std::lround(sin * a.anchor.point.x + cos * a.anchor.point.y);
+        const auto bRotated = std::lround(sin * b.anchor.point.x + cos * b.anchor.point.y);
         if (aRotated != bRotated) {
             return aRotated < bRotated;
         }

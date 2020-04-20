@@ -81,6 +81,7 @@ add_library(
     ${PROJECT_SOURCE_DIR}/test/tile/tile_id.test.cpp
     ${PROJECT_SOURCE_DIR}/test/tile/vector_tile.test.cpp
     ${PROJECT_SOURCE_DIR}/test/util/async_task.test.cpp
+    ${PROJECT_SOURCE_DIR}/test/util/bounding_volumes.test.cpp
     ${PROJECT_SOURCE_DIR}/test/util/dtoa.test.cpp
     ${PROJECT_SOURCE_DIR}/test/util/geo.test.cpp
     ${PROJECT_SOURCE_DIR}/test/util/grid_index.test.cpp
@@ -93,6 +94,7 @@ add_library(
     ${PROJECT_SOURCE_DIR}/test/util/pass.test.cpp
     ${PROJECT_SOURCE_DIR}/test/util/position.test.cpp
     ${PROJECT_SOURCE_DIR}/test/util/projection.test.cpp
+    ${PROJECT_SOURCE_DIR}/test/util/rotation.test.cpp
     ${PROJECT_SOURCE_DIR}/test/util/run_loop.test.cpp
     ${PROJECT_SOURCE_DIR}/test/util/string.test.cpp
     ${PROJECT_SOURCE_DIR}/test/util/text_conversions.test.cpp
@@ -156,10 +158,6 @@ else()
         COMPILE_OPTIONS
         $<$<STREQUAL:${CMAKE_SYSTEM_NAME},iOS>:-Wno-shorten-64-to-32>
     )
-    target_include_directories(
-        mbgl-test
-        PRIVATE ${PROJECT_SOURCE_DIR}/vendor/cpp-httplib
-    )
 endif()
 
 if(NOT DEFINED ENV{CI})
@@ -187,6 +185,7 @@ target_include_directories(
     PUBLIC ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/test/include
 )
 
+include(${PROJECT_SOURCE_DIR}/vendor/cpp-httplib.cmake)
 include(${PROJECT_SOURCE_DIR}/vendor/googletest.cmake)
 
 if(CMAKE_SYSTEM_NAME STREQUAL iOS)
@@ -211,6 +210,7 @@ target_link_libraries(
         Mapbox::Base::Extras::args
         Mapbox::Base::pixelmatch-cpp
         mbgl-compiler-options
+        mbgl-vendor-cpp-httplib
     PUBLIC mbgl-core
 )
 

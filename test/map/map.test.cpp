@@ -10,6 +10,7 @@
 #include <mbgl/gl/context.hpp>
 #include <mbgl/map/map_options.hpp>
 #include <mbgl/math/log2.hpp>
+#include <mbgl/renderer/renderer.hpp>
 #include <mbgl/renderer/update_parameters.hpp>
 #include <mbgl/storage/file_source_manager.hpp>
 #include <mbgl/storage/main_resource_loader.hpp>
@@ -52,6 +53,11 @@ public:
         , frontend(pixelRatio)
         , map(frontend, observer, fileSource,
               MapOptions().withMapMode(mode).withSize(frontend.getSize()).withPixelRatio(pixelRatio)) {}
+
+    explicit MapTest(MapOptions options)
+        : fileSource(std::make_shared<FileSource>()),
+          frontend(options.pixelRatio()),
+          map(frontend, observer, fileSource, options.withSize(frontend.getSize())) {}
 
     template <typename T = FileSource>
     MapTest(const std::string& cachePath,
@@ -344,12 +350,13 @@ TEST(Map, Offline) {
     const std::string prefix = "http://127.0.0.1:3000/";
     std::shared_ptr<FileSource> dbfs =
         FileSourceManager::get()->getFileSource(FileSourceType::Database, ResourceOptions{});
-    dbfs->forward(Resource::style(prefix + "style.json"), expiredItem("style.json"));
-    dbfs->forward(Resource::source(prefix + "streets.json"), expiredItem("streets.json"));
-    dbfs->forward(Resource::spriteJSON(prefix + "sprite", 1.0), expiredItem("sprite.json"));
-    dbfs->forward(Resource::spriteImage(prefix + "sprite", 1.0), expiredItem("sprite.png"));
+    dbfs->forward(Resource::style(prefix + "style.json"), expiredItem("style.json"), [] {});
+    dbfs->forward(Resource::source(prefix + "streets.json"), expiredItem("streets.json"), [] {});
+    dbfs->forward(Resource::spriteJSON(prefix + "sprite", 1.0), expiredItem("sprite.json"), [] {});
+    dbfs->forward(Resource::spriteImage(prefix + "sprite", 1.0), expiredItem("sprite.png"), [] {});
     dbfs->forward(Resource::tile(prefix + "{z}-{x}-{y}.vector.pbf", 1.0, 0, 0, 0, Tileset::Scheme::XYZ),
-                  expiredItem("0-0-0.vector.pbf"));
+                  expiredItem("0-0-0.vector.pbf"),
+                  [] {});
     dbfs->forward(Resource::glyphs(prefix + "{fontstack}/{range}.pbf", {{"Helvetica"}}, {0, 255}),
                   expiredItem("glyph.pbf"),
                   [&] { test.map.getStyle().loadURL(prefix + "style.json"); });
@@ -1331,13 +1338,137 @@ TEST(Map, TEST_REQUIRES_SERVER(ExpiredSpriteSheet)) {
     const std::string prefix = "http://127.0.0.1:3000/online/";
     std::shared_ptr<FileSource> dbfs =
         FileSourceManager::get()->getFileSource(FileSourceType::Database, ResourceOptions{});
-    dbfs->forward(Resource::style(prefix + "style.json"), makeResponse("style.json"));
-    dbfs->forward(Resource::source(prefix + "streets.json"), makeResponse("streets.json"));
-    dbfs->forward(Resource::spriteJSON(prefix + "sprite", 1.0), makeResponse("sprite.json", true));
-    dbfs->forward(Resource::spriteImage(prefix + "sprite", 1.0), makeResponse("sprite.png", true));
+    dbfs->forward(Resource::style(prefix + "style.json"), makeResponse("style.json"), [] {});
+    dbfs->forward(Resource::source(prefix + "streets.json"), makeResponse("streets.json"), [] {});
+    dbfs->forward(Resource::spriteJSON(prefix + "sprite", 1.0), makeResponse("sprite.json", true), [] {});
+    dbfs->forward(Resource::spriteImage(prefix + "sprite", 1.0), makeResponse("sprite.png", true), [] {});
     dbfs->forward(Resource::tile(prefix + "{z}-{x}-{y}.vector.pbf", 1.0, 0, 0, 0, Tileset::Scheme::XYZ),
                   makeResponse("0-0-0.vector.pbf"),
                   [&] { test.map.getStyle().loadURL(prefix + "style.json"); });
 
     test.runLoop.run();
+}
+
+namespace {
+
+int requestsCount = 0;
+auto makeResponse(const std::string& file, bool incrementCounter = false) {
+    return [file, incrementCounter](const Resource&) {
+        if (incrementCounter) ++requestsCount;
+        Response result;
+        result.data = std::make_shared<std::string>(util::read_file("test/fixtures/resources/" + file));
+        return result;
+    };
+}
+
+} // namespace
+
+TEST(Map, KeepRenderData) {
+    MapTest<> test;
+
+    test.fileSource->tileResponse = makeResponse("vector.tile", true);
+    test.fileSource->glyphsResponse = makeResponse("glyphs.pbf", true);
+    // The resources below belong to style and requested on style re-load.
+    test.fileSource->styleResponse = makeResponse("style_vector.json");
+    test.fileSource->sourceResponse = makeResponse("source_vector.json");
+    test.fileSource->spriteJSONResponse = makeResponse("sprite.json");
+    test.fileSource->spriteImageResponse = makeResponse("sprite.png");
+
+    test.map.jumpTo(CameraOptions().withZoom(10));
+    test.map.getStyle().loadURL("mapbox://streets");
+    const int iterations = 3;
+    const int resourcesCount = 4 /*tiles*/ + 3 /*fonts*/;
+    // Keep render data.
+    for (int i = 1; i <= iterations; ++i) {
+        test.frontend.render(test.map);
+        EXPECT_EQ(resourcesCount, requestsCount);
+    }
+    requestsCount = 0;
+    // Clear render data.
+    for (int i = 1; i <= iterations; ++i) {
+        test.frontend.getRenderer()->clearData();
+        test.frontend.render(test.map);
+        EXPECT_EQ(resourcesCount * i, requestsCount);
+    }
+}
+
+namespace {
+
+bool isInsideTile(const mapbox::geometry::box<float>& box, float padding, Size viewportSize) {
+    if (box.min.x - padding < 0) return false;
+    if (box.min.y - padding < 0) return false;
+    if (box.max.x - padding > viewportSize.width) return false;
+    if (box.max.y - padding > viewportSize.height) return false;
+    return true;
+}
+
+} // namespace
+
+TEST(Map, PlacedSymbolData) {
+    MapTest<> test{std::move(MapOptions().withMapMode(MapMode::Tile))};
+
+    test.fileSource->tileResponse = makeResponse("vector.tile", true);
+    test.fileSource->glyphsResponse = makeResponse("glyphs.pbf", true);
+    test.fileSource->styleResponse = makeResponse("style_vector.json");
+    test.fileSource->sourceResponse = makeResponse("source_vector.json");
+    test.fileSource->spriteJSONResponse = makeResponse("sprite.json");
+    test.fileSource->spriteImageResponse = makeResponse("sprite.png");
+
+    // Camera options will give exactly one tile (12/1171/1566)
+    test.map.jumpTo(CameraOptions().withZoom(12).withCenter(LatLng{38.917982, -77.037603}));
+    test.map.getStyle().loadURL("mapbox://streets");
+    Size viewportSize = test.frontend.getSize();
+    test.frontend.getRenderer()->collectPlacedSymbolData(true);
+    test.frontend.render(test.map);
+
+    const auto& placedSymbols = test.frontend.getRenderer()->getPlacedSymbolsData();
+    EXPECT_FALSE(placedSymbols.empty());
+
+    int placedTextInsideTile = 0;
+    int placedText = 0;
+
+    int placedIconInsideTile = 0;
+    int placedIcon = 0;
+
+    int placedTotal = 0;
+
+    const std::set<std::string> symbolLayers{"place-city-lg-s",
+                                             "place-neighbourhood",
+                                             "place-suburb",
+                                             "poi-scalerank2",
+                                             "poi-scalerank3",
+                                             "poi-parks-scalerank1",
+                                             "poi-parks-scalerank2",
+                                             "poi-parks-scalerank3",
+                                             "rail-label"};
+
+    for (const auto& placedSymbol : placedSymbols) {
+        EXPECT_NE(0u, symbolLayers.count(placedSymbol.layer));
+        if (placedSymbol.textPlaced && placedSymbol.textCollisionBox) {
+            if (isInsideTile(*placedSymbol.textCollisionBox, placedSymbol.viewportPadding, viewportSize)) {
+                EXPECT_FALSE(placedSymbol.intersectsTileBorder);
+                ++placedTextInsideTile;
+            }
+            ++placedText;
+        }
+        if (placedSymbol.iconPlaced && placedSymbol.iconCollisionBox) {
+            if (isInsideTile(*placedSymbol.iconCollisionBox, placedSymbol.viewportPadding, viewportSize)) {
+                EXPECT_FALSE(placedSymbol.intersectsTileBorder);
+                ++placedIconInsideTile;
+            }
+            ++placedIcon;
+        }
+        ++placedTotal;
+    }
+    EXPECT_EQ(1, placedTextInsideTile);
+    EXPECT_EQ(28, placedText);
+
+    EXPECT_EQ(2, placedIconInsideTile);
+    EXPECT_EQ(29, placedIcon);
+
+    EXPECT_EQ(50, placedTotal);
+    test.frontend.getRenderer()->collectPlacedSymbolData(false);
+    test.frontend.render(test.map);
+
+    EXPECT_TRUE(test.frontend.getRenderer()->getPlacedSymbolsData().empty());
 }

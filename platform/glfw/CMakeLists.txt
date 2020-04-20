@@ -7,12 +7,27 @@ add_executable(
     mbgl-glfw
     ${PROJECT_SOURCE_DIR}/platform/glfw/main.cpp
     ${PROJECT_SOURCE_DIR}/platform/glfw/glfw_view.cpp
-    ${PROJECT_SOURCE_DIR}/platform/glfw/glfw_gl_backend.cpp
     ${PROJECT_SOURCE_DIR}/platform/glfw/glfw_renderer_frontend.cpp
     ${PROJECT_SOURCE_DIR}/platform/glfw/settings_json.cpp
     ${PROJECT_SOURCE_DIR}/platform/glfw/test_writer.cpp
     ${PROJECT_SOURCE_DIR}/platform/default/src/mbgl/map/map_snapshotter.cpp
 )
+
+set_property(
+    SOURCE ${PROJECT_SOURCE_DIR}/platform/glfw/glfw_view.cpp
+    PROPERTY COMPILE_DEFINITIONS MAPBOX_PUCK_ASSETS_PATH=\"${PROJECT_SOURCE_DIR}/platform/glfw/assets/\"
+)
+
+if(MBGL_WITH_OPENGL)
+    target_sources(
+        mbgl-glfw
+        PRIVATE ${PROJECT_SOURCE_DIR}/platform/glfw/glfw_gl_backend.cpp
+    )
+    target_compile_definitions(
+        mbgl-glfw
+        PRIVATE MBGL_RENDER_BACKEND_OPENGL=1
+    )
+endif()
 
 target_include_directories(
     mbgl-glfw
@@ -21,8 +36,6 @@ target_include_directories(
         # For /platform/default/src/mbgl/map/map_snapshotter.hpp
     PRIVATE ${PROJECT_SOURCE_DIR}/src
 )
-
-include(${PROJECT_SOURCE_DIR}/vendor/cheap-ruler-cpp.cmake)
 
 # Use target_link_directories when we move away from CMake 3.10.
 target_link_libraries(
@@ -38,10 +51,16 @@ target_link_libraries(
         Mapbox::Base::Extras::filesystem
         Mapbox::Base::Extras::rapidjson
         Mapbox::Map
-        OpenGL::GL
         mbgl-compiler-options
-        mbgl-vendor-cheap-ruler-cpp
+        Mapbox::Base::cheap-ruler-cpp
 )
+
+if(MBGL_WITH_OPENGL)
+    target_link_libraries(
+        mbgl-glfw
+        PRIVATE OpenGL::GL
+    )
+endif()
 
 set_property(TARGET mbgl-glfw PROPERTY FOLDER Executables)
 

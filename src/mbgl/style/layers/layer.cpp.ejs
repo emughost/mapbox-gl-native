@@ -4,10 +4,12 @@
   const paintProperties = locals.paintProperties;
   const allProperties = paintProperties.concat(layoutProperties);
 -%>
+// clang-format off
+
 // This file is generated. Edit scripts/generate-style-code.js, then run `make style-code`.
 
-#include <mbgl/style/layers/<%- type.replace('-', '_') %>_layer.hpp>
-#include <mbgl/style/layers/<%- type.replace('-', '_') %>_layer_impl.hpp>
+#include <mbgl/style/layers/<%- type.replace(/-/g, '_') %>_layer.hpp>
+#include <mbgl/style/layers/<%- type.replace(/-/g, '_') %>_layer_impl.hpp>
 #include <mbgl/style/layer_observer.hpp>
 #include <mbgl/style/conversion/color_ramp_property_value.hpp>
 #include <mbgl/style/conversion/constant.hpp>
@@ -71,13 +73,17 @@ layerCapabilities['symbol']         = defaults.require('Source')
                                               .require('CrossTileIndex')
                                               .set('TileKind', 'Geometry')
                                               .finalize();
-layerCapabilities['circle']         = defaults.require('Source').set('TileKind', 'Geometry').finalize();
+layerCapabilities['circle']         = defaults.require('Source')
+                                              .require('Layout')
+                                              .set('TileKind', 'Geometry')
+                                              .finalize();
 layerCapabilities['line']           = layerCapabilities['fill'];
 layerCapabilities['heatmap']        = defaults.require('Source')
                                               .require('Pass3D')
                                               .set('TileKind', 'Geometry')
                                               .finalize();
 layerCapabilities['raster']         = defaults.require('Source').set('TileKind', 'Raster').finalize();
+layerCapabilities['location-indicator']     = defaults.finalize();
 
 // Splits lines that are over 120 characters at the firts occurance of '='.
 const split120Line = line => {
@@ -97,7 +103,7 @@ const LayerTypeInfo* <%- camelize(type) %>Layer::Impl::staticTypeInfo() noexcept
 }
 
 
-<% if (type === 'background') { -%>
+<% if ((type === 'background') || (type === 'location-indicator')) { -%>
 <%- camelize(type) %>Layer::<%- camelize(type) %>Layer(const std::string& layerID)
     : Layer(makeMutable<Impl>(layerID, std::string())) {
 }
@@ -271,12 +277,9 @@ Value <%- camelize(type) %>Layer::serialize() const {
     return result;
 }
 
-optional<Error> <%- camelize(type) %>Layer::setProperty(const std::string& name, const Convertible& value) {
+optional<Error> <%- camelize(type) %>Layer::setPropertyInternal(const std::string& name, const Convertible& value) {
     const auto it = layerProperties.find(name.c_str());
-    if (it == layerProperties.end()) {
-        if (name == "visibility") return setVisibility(value);
-        return Error{"layer doesn't support this property"};
-    }
+    if (it == layerProperties.end()) return Error{"layer doesn't support this property"};
 
     auto property = static_cast<Property>(it->second);
 
@@ -342,3 +345,5 @@ Mutable<Layer::Impl> <%- camelize(type) %>Layer::mutableBaseImpl() const {
 
 } // namespace style
 } // namespace mbgl
+
+// clang-format on
